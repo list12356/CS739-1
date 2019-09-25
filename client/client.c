@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
+#include <stdio.h>
 #include "client.h"
 
 /*
@@ -35,6 +36,13 @@ struct packet
     char old_value[2048];
 };
 
+int print_packet(struct packet* pkt)
+{
+    printf("%d, %d, %d, %c, %c, %s, %s, %s\n",
+        pkt->optype, pkt->time, pkt->return_value, pkt->has_old_val, pkt->has_val, pkt->key, pkt->value, pkt->old_value
+    );
+}
+
 // use little endian to encode integer
 int encode_int(char* bytes, int n)
 {
@@ -47,17 +55,14 @@ int encode_int(char* bytes, int n)
 int decode_int(char* bytes, int* n)
 {
     *n = 0;
-    *n |= bytes[3] << 24;
-    *n |= bytes[2] << 16;
-    *n |= bytes[1] << 8;
-    *n |= bytes[0];
+    *n = bytes[0] + (bytes[1] << 8) + (bytes[2] << 16) + (bytes[3] << 24);
 }
 
 int encode(struct packet* pkt, char* str)
 {
     encode_int(str, pkt -> optype);
     encode_int(str+4, pkt -> time);
-    encode_int(str+8, pkt -> return_value);
+    encode_int(str+8, 0);
     str[12] = pkt -> has_old_val;
     str[13] = pkt -> has_val;
     strcpy(str + 128, pkt -> key);
@@ -103,7 +108,6 @@ int kv739_init(char **server_list)
     socket_list = malloc(max_server*sizeof(int));
     while(*server_list != NULL)
     {
-        printf(*server_list);
         struct sockaddr_in serv_addr;
         char* server = *server_list;
         int tcp_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -145,7 +149,7 @@ int kv739_init(char **server_list)
 
 int kv739_get(char * key, char * value)
 {
-    int latest = 0;
+    int latest = -2147483648;
     int rtn = 0;
     char *buf = malloc(8192);
     for(int i = 0; i < num_server; i++)
@@ -154,10 +158,13 @@ int kv739_get(char * key, char * value)
         struct packet pkt;
         pkt.optype = 0;
         strcpy(pkt.key, key);
+        memset(pkt.value, 0, 2048);
+        memset(pkt.old_value, 0, 2048);
         encode(&pkt, buf);
         send(socket_list[i] , buf , 8192 , 0); 
         int rtn = read(socket_list[i] , buf, 8192);
         decode(&pkt, buf);
+        // print_packet(&pkt);
         if (pkt.time > latest)
         {
             strcpy(value, pkt.value);
@@ -180,10 +187,12 @@ int kv739_put(char * key, char * value, char * old_value)
         pkt.time = time(NULL);
         strcpy(pkt.key, key);
         strcpy(pkt.value, value);
+        memset(pkt.old_value, 0, 2048);
         encode(&pkt, buf);
         send(socket_list[i] , buf , 8192 , 0); 
         int rtn = read(socket_list[i] , buf, 8192);
         decode(&pkt, buf);
+        // print_packet(&pkt);
         if (pkt.time > latest)
         {
             strcpy(old_value, pkt.old_value);
@@ -192,33 +201,4 @@ int kv739_put(char * key, char * value, char * old_value)
     }
     free(buf);
     return rtn;
-}
-
-
-int main(int argc, char* argv[])
-{
-    //test_split
-    if (argc < 2)
-    {
-        fprintf(stderr, "error usage\n");
-    }
-    char **server_list = malloc((argc + 1)*sizeof(char*));
-    for(int i = 0; i < argc - 1; i++)
-    {
-        server_list[i] = malloc(128);
-        strcpy(server_list[i], argv[i + 1]);
-    }
-    server_list[argc] = NULL;
-    char value[2048];
-    kv739_init(server_list);
-    kv739_put("aa", "11", value);
-    kv739_put("bb", "22", value);
-    kv739_put("cc", "33", value);
-    kv739_get("aa", value);
-    printf("%s\n", value);
-    kv739_get("bb", value);
-    printf("%s\n", value);
-    kv739_get("cc", value);
-    printf("%s\n", value);
-    return 0;
 }

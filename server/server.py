@@ -5,7 +5,7 @@ import datetime
 import pickle
 import custom_protocol
 from custom_protocol import CustomProtocol
-
+from threading import Thread
 
 class Server:
     def __init__(self, host, port):
@@ -16,6 +16,8 @@ class Server:
         self.lastSaveTime = self.getTime()
         self.recoverFromDisk()
         self.protocol = CustomProtocol()
+        self.socket = None
+        self.connection = None
     
     def saveDictIfTimeOut(self):
         if self.getTime() - self.lastSaveTime > 5:
@@ -57,7 +59,7 @@ class Server:
         try:
             self.socket.bind((self.host, self.port))
         except socket.error as msg:
-            print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
+            print('Bind failed. ' + str(msg))
             sys.exit()
 
     def listen(self): 
@@ -90,7 +92,10 @@ class Server:
         # request is a string
         # message = custom_protocol.Message()
         # message.ParseFromString(request)
-        message = self.protocol.decode(request)
+        try:
+            message = self.protocol.decode(request)
+        except:
+            return
         message.print()
         # print(request)
         if message.Op == custom_protocol.Message.PUT:
@@ -174,6 +179,8 @@ if __name__ == "__main__":
         s.listen()
     finally:
         s.saveToDisk()
-        s.connection.close()
-        s.socket.close()
+        if s.connection:
+            s.connection.close()
+        if s.socket:
+            s.socket.close()
             

@@ -9,10 +9,21 @@
 # 	$(CC) $(FLAGS) -c client.c
 
 CC=gcc
-FLAGS=
+FLAGS=-fPIC
 
-client: client.o
-	$(CC) client.o -o client
+all:test lib739kv.so
 
-client.o : client.c
+test:test.o client.o
+	$(CC) test.o client.o -o $@ 
+
+client.o: client.c
 	$(CC) $(FLAGS) -c client.c
+
+lib739kv.so:client.o
+	$(CC) -shared $< -o $@
+
+test.o:test.c
+	$(CC) -c $(FLAGS) $< -o $@
+
+clean:
+	rm -rf *.o *.so test

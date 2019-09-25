@@ -37,11 +37,11 @@ class CustomProtocol(object):
         string = (0).to_bytes(4, byteorder='little')
         string += (msg.time).to_bytes(4, byteorder='little')
         string += (msg.returnValue).to_bytes(4, byteorder='little')
-        string += (msg.hasOldValue).to_bytes(4, byteorder='little')
-        string += (msg.hasValue).to_bytes(4, byteorder='little')
+        string += (msg.hasOldValue).to_bytes(1, byteorder='little')
+        string += (msg.hasValue).to_bytes(1, byteorder='little')
         # padding the space
         string = string.ljust(128, b'\0')
-        string += bytes(msg.key, 'ascii').ljust(128, b'\0')
-        string += bytes(msg.value, 'ascii').ljust(2048, b'\0')
-        string += bytes(msg.oldValue, 'ascii').ljust(2048, b'\0')
+        string += msg.key.encode('ascii').ljust(128, b'\0')
+        string += msg.value.encode('ascii').ljust(2048, b'\0')
+        string += msg.oldValue.encode('ascii').ljust(2048, b'\0')
         return string
