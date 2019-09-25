@@ -1,6 +1,7 @@
 import socket
 import sys
 import datetime
+import time
 # import message_pb2
 import pickle
 import custom_protocol
@@ -12,12 +13,14 @@ import socketserver
 
 
 class KVServer:
-    def __init__(self):
+    def __init__(self, port):
         self.key2val = {}
         self.key2time = {}
         self.lastSaveTime = self.getTime()
         self.recoverFromDisk()
         self.protocol = CustomProtocol()
+        self.port = port
+        self.host = "localhost"
     
     def saveDictIfTimeOut(self):
         if self.getTime() - self.lastSaveTime > 5:
@@ -69,14 +72,11 @@ class KVServer:
             message = self.protocol.decode(request)
         except:
             return
-        message.print()
-        # print(request)
+        # message.print()
         if message.Op == custom_protocol.Message.PUT:
-            #print("Put operation")
             returnVal, oldValue = self.put(message.key, message.value, message.time)
-            print(returnVal, oldValue)
-            #print("ACK message")
-            
+            # print(returnVal, oldValue)
+
             ACK = custom_protocol.Message()
             ACK.returnValue = returnVal
             if oldValue:
@@ -130,28 +130,47 @@ class KVServer:
                 self.key2time[key] = time 
                 return 0, oldValue
 
-kv_server = KVServer()
+kv_server = None
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         cur_thread = threading.current_thread()
-        print("Processing request {!s}".format(cur_thread.name))
-        # response = bytes("{}: {}".format(cur_thread.name, data), 'ascii')
-        response = kv_server.processRequest(self.request.recv(8192))
-        self.request.sendall(response)
+        # print('Handling request thread: {!s}'.format(cur_thread.name))
+        while True:
+            data = self.request.recv(8192)
+            if not data:
+                break
+            response = kv_server.processRequest(data)
+            self.request.sendall(response)
+        # print('Connection closed by client in thread: {!s}'.format(cur_thread.name))
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
-if __name__ == "__main__":
-    # Port 0 means to select an arbitrary unused port
-    HOST, PORT = "localhost", 0
+class PersistThread(threading.Thread):
 
+    def run(self):
+        while(True):
+            time.sleep(1)
+            kv_server.saveDictIfTimeOut()
+
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('port', type=int)
+    args = parser.parse_args()
+    HOST = 'localhost'
+    PORT = args.port
+
+    kv_server = KVServer(PORT)
+    kv_daemon = PersistThread()
+    kv_daemon.daemon = True
+    kv_daemon.start()
     server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
     with server:
-        ip, port = server.server_address
-
         # Start a thread with the server -- that thread will then start one
         # more thread for each request
         server_thread = threading.Thread(target=server.serve_forever)
@@ -159,4 +178,5 @@ if __name__ == "__main__":
         server_thread.daemon = True
         server_thread.start()
         print("Server loop running in thread:", server_thread.name)
-        server.shutdown()
+        server_thread.join()
+        # server.shutdown()
