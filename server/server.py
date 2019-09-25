@@ -6,24 +6,23 @@ import pickle
 import custom_protocol
 from custom_protocol import CustomProtocol
 from threading import Thread
+import socket
+import threading
+import socketserver
 
-class Server:
-    def __init__(self, host, port):
-        self.host = host 
-        self.port = port 
+
+class KVServer:
+    def __init__(self):
         self.key2val = {}
         self.key2time = {}
         self.lastSaveTime = self.getTime()
         self.recoverFromDisk()
         self.protocol = CustomProtocol()
-        self.socket = None
-        self.connection = None
     
     def saveDictIfTimeOut(self):
         if self.getTime() - self.lastSaveTime > 5:
             self.saveToDisk()
             self.lastSaveTime = self.getTime()
-            
             
 
     def saveToDisk(self):
@@ -62,32 +61,6 @@ class Server:
             print('Bind failed. ' + str(msg))
             sys.exit()
 
-    def listen(self): 
-        # The primary fucntion of server
-        # Listen for incoming connections and process request
-        self.socket.listen(1)
-        while True:
-            # Wait for a connection
-            #print('waiting for a connection')
-            self.connection, self.client_address = self.socket.accept()
-            try:
-                #print('connection from', self.client_address)
-                # Receive the data in small chunks and retransmit it
-                while True:
-                    data = self.connection.recv(8192)
-                    #print('received "%s"' % data)
-                    if data:
-                        self.processRequest(data)
-                    else:
-                        print('Connection closed')
-                        break
-                
-                self.saveDictIfTimeOut()
-                    
-            finally:
-                # Clean up the connection
-                self.connection.close()
-
     def processRequest(self, request):
         # request is a string
         # message = custom_protocol.Message()
@@ -111,9 +84,7 @@ class Server:
                 ACK.hasOldValue = 1
             else:
                 ACK.hasOldValue = 0
-            #print(ACK)
-            # self.connection.sendall(ACK.SerializeToString())
-            self.connection.sendall(self.protocol.encode(ACK))
+            return self.protocol.encode(ACK)
         elif message.Op == custom_protocol.Message.GET:
             #print("Get operation")
             returnVal, value, time = self.get(message.key)
@@ -125,15 +96,7 @@ class Server:
                 ACK.time = time
             else:
                 ACK.hasValue = 0
-            # self.connection.sendall(ACK.SerializeToString())
-            self.connection.sendall(self.protocol.encode(ACK))
-        
-
-
-    
-    
-    #def generateMessage(self, key, value, time, returValue):
-
+            return self.protocol.encode(ACK)
 
     def get(self, key):
         # get the value and timestamp for the given key
@@ -167,20 +130,33 @@ class Server:
                 self.key2time[key] = time 
                 return 0, oldValue
 
+kv_server = KVServer()
+
+class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
+
+    def handle(self):
+        cur_thread = threading.current_thread()
+        print("Processing request {!s}".format(cur_thread.name))
+        # response = bytes("{}: {}".format(cur_thread.name, data), 'ascii')
+        response = kv_server.processRequest(self.request.recv(8192))
+        self.request.sendall(response)
+
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    pass
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('port', type=int)
-    args = parser.parse_args()
-    s = Server('localhost', args.port)
-    try:
-        s.initSocket()
-        s.listen()
-    finally:
-        s.saveToDisk()
-        if s.connection:
-            s.connection.close()
-        if s.socket:
-            s.socket.close()
-            
+    # Port 0 means to select an arbitrary unused port
+    HOST, PORT = "localhost", 0
+
+    server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
+    with server:
+        ip, port = server.server_address
+
+        # Start a thread with the server -- that thread will then start one
+        # more thread for each request
+        server_thread = threading.Thread(target=server.serve_forever)
+        # Exit the server thread when the main thread terminates
+        server_thread.daemon = True
+        server_thread.start()
+        print("Server loop running in thread:", server_thread.name)
+        server.shutdown()

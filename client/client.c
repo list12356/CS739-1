@@ -22,7 +22,11 @@
 */
 
 int num_server;
+int num_partition;
+int num_replica;
 int* socket_list;
+struct timeval timeout;
+
 
 struct packet
 {
@@ -106,6 +110,9 @@ int kv739_init(char **server_list)
     num_server = 0;
     int max_server = 128;
     socket_list = malloc(max_server*sizeof(int));
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+
     while(*server_list != NULL)
     {
         struct sockaddr_in serv_addr;
@@ -118,6 +125,14 @@ int kv739_init(char **server_list)
         serv_addr.sin_family = AF_INET;
         serv_addr.sin_port = htons(port); 
         
+        if (setsockopt (tcp_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
+                    sizeof(timeout)) < 0)
+            printf("setsockopt failed\n");
+
+        if (setsockopt (tcp_socket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
+                    sizeof(timeout)) < 0)
+            printf("setsockopt failed\n");
+
         // Convert IPv4 and IPv6 addresses from text to binary form 
         if(inet_pton(AF_INET, address, &serv_addr.sin_addr)<=0)  
         { 
