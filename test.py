@@ -1,20 +1,47 @@
 from client.client import Client
+import time
+
 
 def main(server_list):
+    # basic correctness
+    # test_correct(server_list)
+    test_order(server_list)
+
+def test_correct(server_list):
     # basic correctness
     client = Client(server_list)
     old_val = client.put("aa", "11")
     old_val = client.put("bb", "22")
     old_val = client.put("cc", "33")
-    print(client.get("aa"))
-    print(client.get("bb"))
-    print(client.get("cc"))
+    time.sleep(1)
     old_val = client.put("aa", "44")
     old_val = client.put("bb", "55")
     old_val = client.put("cc", "66")
     print(client.get("aa"))
     print(client.get("bb"))
     print(client.get("cc"))
+    import pdb; pdb.set_trace()
+    # assert client.get("aa") == "44"
+    # assert client.get("bb") == "55"
+    # assert client.get(
+
+def test_order(server_list):
+    client = Client(server_list)
+    failure = 0
+    client.put("aa", "xxx")
+    # import pdb; pdb.set_trace()
+    time.sleep(1)
+    for i in range(100):
+        old_val = client.put("aa", str(i))
+        time.sleep(0.1)
+        if old_val == '':
+            # import pdb; pdb.set_trace()
+            failure += 1
+    print(client.get("aa"))
+    print("Total Failuer: {!s}".format(i))
+
+def test_throughput(server_list):
+    client = Client(server_list)
 
 
 

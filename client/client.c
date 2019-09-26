@@ -169,6 +169,8 @@ int kv739_get(char * key, char * value)
     char *buf = malloc(8192);
     for(int i = 0; i < num_server; i++)
     {
+        int retry = 0;
+        int sent = 0;
         memset(buf, 0, 8192);
         struct packet pkt;
         pkt.optype = 0;
@@ -176,7 +178,14 @@ int kv739_get(char * key, char * value)
         memset(pkt.value, 0, 2048);
         memset(pkt.old_value, 0, 2048);
         encode(&pkt, buf);
-        send(socket_list[i] , buf , 8192 , 0); 
+        while((sent = send(socket_list[i] , buf , 8192 , 0)) != 8192)
+        {
+            printf("Sent not complete, retry: %d\n", retry + 1);
+            if (retry++ >= 2 || sent < 0)
+                break;
+        }
+        if (sent != 8192)
+            continue;
         int rtn = read(socket_list[i] , buf, 8192);
         decode(&pkt, buf);
         // print_packet(&pkt);
@@ -191,11 +200,13 @@ int kv739_get(char * key, char * value)
 }
 int kv739_put(char * key, char * value, char * old_value)
 {
-    int latest = 0;
+    int latest = -2147483648;
     int rtn = 0;
     char *buf = malloc(8192);
     for(int i = 0; i < num_server; i++)
     {
+        int retry = 0;
+        int sent = 0;
         memset(buf, 0, 8192);
         struct packet pkt;
         pkt.optype = 1;
@@ -204,7 +215,15 @@ int kv739_put(char * key, char * value, char * old_value)
         strcpy(pkt.value, value);
         memset(pkt.old_value, 0, 2048);
         encode(&pkt, buf);
-        send(socket_list[i] , buf , 8192 , 0); 
+        
+        while((sent = send(socket_list[i] , buf , 8192 , 0)) != 8192)
+        {
+            printf("Sent not complete, retry: %d\n", retry + 1);
+            if (retry++ >= 2 || sent < 0)
+                break;
+        }
+        if (sent != 8192)
+            continue;
         int rtn = read(socket_list[i] , buf, 8192);
         decode(&pkt, buf);
         // print_packet(&pkt);

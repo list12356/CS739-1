@@ -71,6 +71,7 @@ class KVServer:
         try:
             message = self.protocol.decode(request)
         except:
+            # print("failed decode packet")
             return
         # message.print()
         if message.Op == custom_protocol.Message.PUT:
@@ -138,11 +139,12 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         cur_thread = threading.current_thread()
         # print('Handling request thread: {!s}'.format(cur_thread.name))
         while True:
-            data = self.request.recv(8192)
+            data = self.request.recv(16384)
             if not data:
                 break
             response = kv_server.processRequest(data)
-            self.request.sendall(response)
+            if response:
+                self.request.sendall(response)
         # print('Connection closed by client in thread: {!s}'.format(cur_thread.name))
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
