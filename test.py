@@ -1,47 +1,106 @@
 from client.client import Client
-import time
 
+from multiprocessing import Process
+import time
+import random
+import string
+
+TEST_COUNTER = 50000
 
 def main(server_list):
     # basic correctness
-    # test_correct(server_list)
-    test_order(server_list)
+    test_correct_single(server_list)
+    test_correct_multiple(server_list)
+    # test_order_single(server_list)
+    # test_order_multiple(server_list)
+    test_throughput(server_list)
 
-def test_correct(server_list):
+def test_correct_single(server_list):
     # basic correctness
+    print("Testing basic correctness")
     client = Client(server_list)
     old_val = client.put("aa", "11")
     old_val = client.put("bb", "22")
     old_val = client.put("cc", "33")
-    time.sleep(1)
     old_val = client.put("aa", "44")
+    if old_val != "11":
+        print("Inconsistent value, exepected: 11, get: {}".format(old_val))
     old_val = client.put("bb", "55")
+    if old_val != "22":
+        print("Inconsistent value, exepected: 22, get: {}".format(old_val))
     old_val = client.put("cc", "66")
-    print(client.get("aa"))
-    print(client.get("bb"))
-    print(client.get("cc"))
-    import pdb; pdb.set_trace()
-    # assert client.get("aa") == "44"
-    # assert client.get("bb") == "55"
-    # assert client.get(
+    if old_val != "33":
+        print("Inconsistent value, exepected: 33, get: {}".format(old_val))
+    val = client.get("aa")
+    if val != "44":
+        print("Inconsistent value, exepected: 44, get: {}".format(val))
+    val = client.get("bb")
+    if val != "55":
+        print("Inconsistent value, exepected: 55, get: {}".format(val))
+    val = client.get("cc")
+    if val != "66":
+        print("Inconsistent value, exepected: 66, get: {}".format(val))
+    print("Test Succeed!")
 
-def test_order(server_list):
-    client = Client(server_list)
-    failure = 0
-    client.put("aa", "xxx")
-    # import pdb; pdb.set_trace()
-    time.sleep(1)
-    for i in range(1000):
-        old_val = client.put("aa", str(i))
-        if old_val == '':
-            # import pdb; pdb.set_trace()
-            failure += 1
-    print(client.get("aa"))
-    print("Total Failuer: {!s}".format(failure))
+def test_correct_multiple(server_list):
+    print("Testing consistency over multiple client")
+    client_list = []
+    for server in server_list:
+        client_list.append(Client([server]))
+    for i in range(len(client_list)):
+        client_list[i].put("test_server_name", server_list[i])
+        for j in range(len(client_list)):
+            value = client_list[j].get("test_server_name")
+            if value != server_list[i]:
+                print("Inconsistent value, exepected: {}, get: {}".format(server_list[i], value))
+                return -1
+    print("Test Succeed!")
+    return 0
+
 
 def test_throughput(server_list):
+    # test throughput of uniform key for put
+    print("Testing througput...")
     client = Client(server_list)
+    num_key = 10000
+    key_list = [''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)]) for x in range(num_key)]
+    value = ''.rjust(2048, '0')
+    elapsed_time = 0
+    for i in range(10):
+        for key in key_list:
+            start = time.time()
+            client.put(key, value)
+            elapsed_time += time.time() - start
+    
+    rate = (10*10000*(2048+32)/1024/1024/elapsed_time)
+    print("Througput for uniform key: {:.3f} MB/s".format(rate))  
+ 
+def test_order_single(server_list, verbose=True):
+    if verbose:
+        print("Testing adding counter from single client")
+    failure = 0
+    client = Client(server_list)
+    client.put("counter", "xxx")
+    for i in range(1 + TEST_COUNTER):
+        old_val = client.put("counter", str(i))
+        if old_val == '':
+            failure += 1
+    print("Total Failuer: {!s}".format(failure))
+    if verbose:
+        print("Total counter: {}, actual get: {}".format(TEST_COUNTER, client.get("counter")))
 
+def test_order_multiple(server_list):
+    # provide each client single server
+    print("Testing adding counter from multiple client")
+    process_list = []
+    for server in server_list:
+        p = Process(target=test_order_single, args=([server], False, ))
+        p.start()
+        process_list.append(p)
+    for p in process_list:
+        p.join()
+    client = Client(server_list)
+    print("Expected get counter {}, actual get: {}".format(TEST_COUNTER, client.get("counter")))
 
 
 if __name__ == "__main__":
