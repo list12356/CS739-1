@@ -31,14 +31,13 @@ def test_order(server_list):
     client.put("aa", "xxx")
     # import pdb; pdb.set_trace()
     time.sleep(1)
-    for i in range(100):
+    for i in range(1000):
         old_val = client.put("aa", str(i))
-        time.sleep(0.1)
         if old_val == '':
             # import pdb; pdb.set_trace()
             failure += 1
     print(client.get("aa"))
-    print("Total Failuer: {!s}".format(i))
+    print("Total Failuer: {!s}".format(failure))
 
 def test_throughput(server_list):
     client = Client(server_list)

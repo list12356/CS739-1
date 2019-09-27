@@ -10,10 +10,11 @@ from threading import Thread
 import socket
 import threading
 import socketserver
+import os
 
 
 class KVServer:
-    def __init__(self, port):
+    def __init__(self, port, server_list):
         self.key2val = {}
         self.key2time = {}
         self.lastSaveTime = self.getTime()
@@ -21,6 +22,7 @@ class KVServer:
         self.protocol = CustomProtocol()
         self.port = port
         self.host = "localhost"
+        self.server_list = server_list
     
     def saveDictIfTimeOut(self):
         if self.getTime() - self.lastSaveTime > 5:
@@ -73,12 +75,12 @@ class KVServer:
         except:
             # print("failed decode packet")
             return
+
         # message.print()
+        ACK = custom_protocol.Message()
         if message.Op == custom_protocol.Message.PUT:
             returnVal, oldValue = self.put(message.key, message.value, message.time)
             # print(returnVal, oldValue)
-
-            ACK = custom_protocol.Message()
             ACK.returnValue = returnVal
             if oldValue:
                 ACK.oldValue = oldValue
@@ -89,7 +91,6 @@ class KVServer:
         elif message.Op == custom_protocol.Message.GET:
             #print("Get operation")
             returnVal, value, time = self.get(message.key)
-            ACK = custom_protocol.Message()
             ACK.returnValue = returnVal
             if value:
                 ACK.hasValue = 1
@@ -97,6 +98,20 @@ class KVServer:
                 ACK.time = time
             else:
                 ACK.hasValue = 0
+            return self.protocol.encode(ACK)
+        
+        elif message.Op == custom_protocol.Message.INIT:
+            if not os.path.exists(self.server_list):
+                print("No server list found!")
+                return self.protocol.encode(ACK)
+            try:
+                with open(self.server_list) as server_file:
+                    tmp_list = [x.rstrip() for x in server_file.readlines()]
+                    ACK.returnValue = len(tmp_list)
+                    ACK.value = ';'.join(tmp_list)
+            except:
+                pass
+            
             return self.protocol.encode(ACK)
 
     def get(self, key):
@@ -132,6 +147,7 @@ class KVServer:
                 return 0, oldValue
 
 kv_server = None
+server_list = None
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 
@@ -162,12 +178,13 @@ class PersistThread(threading.Thread):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--server_list', type=str, default="server_list")
     parser.add_argument('port', type=int)
     args = parser.parse_args()
     HOST = 'localhost'
     PORT = args.port
 
-    kv_server = KVServer(PORT)
+    kv_server = KVServer(PORT, args.server_list)
     kv_daemon = PersistThread()
     kv_daemon.daemon = True
     kv_daemon.start()

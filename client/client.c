@@ -27,6 +27,7 @@ int num_replica;
 int* socket_list;
 struct timeval timeout;
 
+//TODO: use enum to represent optype
 
 struct packet
 {
@@ -35,16 +36,36 @@ struct packet
     int return_value;
     char has_old_val;
     char has_val;
-    char key[128];
-    char value[2048];
-    char old_value[2048];
+    char *key;
+    char *value;
+    char *old_value;
 };
 
 int print_packet(struct packet* pkt)
 {
-    printf("%d, %d, %d, %c, %c, %s, %s, %s\n",
-        pkt->optype, pkt->time, pkt->return_value, pkt->has_old_val, pkt->has_val, pkt->key, pkt->value, pkt->old_value
-    );
+    printf("%d, %d, %d, %c, %c, ",
+        pkt->optype, pkt->time, pkt->return_value, pkt->has_old_val, pkt->has_val);
+        if (pkt->key)
+            printf("%s, ", pkt->key);
+        if (pkt->value)
+            printf("%s, ", pkt->value);
+        if (pkt->old_value)
+            printf("%s\n", pkt->old_value);
+}
+
+int init_packet(struct packet* pkt)
+{
+    pkt->optype = 0;
+    pkt->time = 0;
+    pkt->return_value = 0;
+    pkt->has_old_val = 0;
+    pkt->has_val = 0;
+    pkt->key = malloc(128);
+    memset(pkt->key, 0, 128);
+    pkt->value = malloc(2048);
+    memset(pkt->value, 0, 2048);
+    pkt->old_value = malloc(2048);
+    memset(pkt->old_value, 0, 2048);
 }
 
 // use little endian to encode integer
@@ -74,6 +95,9 @@ int encode(struct packet* pkt, char* str)
     strcpy(str + 2304, pkt -> old_value);
 }
 
+/*
+TODO: this function does not tolerate any error in the message.
+*/
 int decode(struct packet* pkt, char* str)
 {
     decode_int(str, &pkt -> optype);
@@ -86,7 +110,7 @@ int decode(struct packet* pkt, char* str)
     strcpy(pkt -> old_value, str + 2304);
 }
 
-int split(char* server, char** address, int* port)
+int split_port(char* server, char** address, int* port)
 {
     int n = strlen(server);
     int addr_len = 0;
@@ -105,23 +129,133 @@ int split(char* server, char** address, int* port)
     return 0;
 }
 
-int kv739_init(char **server_list)
+char** fetch_server(char** init_list)
 {
-    num_server = 0;
-    int max_server = 128;
-    socket_list = malloc(max_server*sizeof(int));
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
+    char *buf = malloc(8192);
+    int sent = 0;
+    char **server_list = NULL;
 
-    while(*server_list != NULL)
+    for(;*init_list != NULL; init_list++)
     {
         struct sockaddr_in serv_addr;
-        char* server = *server_list;
+        char* init_server = *init_list;
         int tcp_socket = socket(AF_INET, SOCK_STREAM, 0);
 
         char *address;
         int port;
-        split(server, &address, &port);
+        split_port(init_server, &address, &port);
+        serv_addr.sin_family = AF_INET;
+        serv_addr.sin_port = htons(port); 
+        
+        if (setsockopt (tcp_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
+                    sizeof(timeout)) < 0)
+        {
+            printf("setsockopt failed\n");
+            close(tcp_socket);
+            continue;
+        }
+
+        if (setsockopt (tcp_socket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
+                    sizeof(timeout)) < 0)
+        {
+            printf("setsockopt failed\n");
+            close(tcp_socket);
+            continue;
+        }
+
+        // Convert IPv4 and IPv6 addresses from text to binary form 
+        if(inet_pton(AF_INET, address, &serv_addr.sin_addr)<=0)  
+        { 
+            printf("\nInvalid address/ Address not supported \n");
+            close(tcp_socket);
+            continue;
+        } 
+
+        if(tcp_socket < 0)
+        {
+            printf("\n Socket creation error \n");
+            close(tcp_socket);
+            continue;
+        }
+        if (connect(tcp_socket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) 
+        { 
+            printf("\nConnection Failed \n"); 
+            close(tcp_socket);
+            continue; 
+        }
+        memset(buf, 0, 8192);
+        struct packet pkt;
+        init_packet(&pkt);
+        pkt.optype = 2;
+        encode(&pkt, buf);
+        sent = send(tcp_socket , buf , 8192 , 0);
+        if (sent != 8192)
+        {
+            printf("Sent not complete, skip.\n");
+            close(tcp_socket);
+            continue;
+        }
+        int rtn = read(tcp_socket , buf, 8192);
+        decode(&pkt, buf);
+        
+        num_server = pkt.return_value;
+        if (num_server == 0)
+        {
+            close(tcp_socket);
+            continue;
+        }
+        // start delemilite the serverlist
+        server_list = malloc((num_server + 1)*sizeof(char*));
+        int n = strlen(pkt.value);
+        int offset = 0;
+        int m = 0;
+        for(int i = 0; i < n; i++)
+        {
+            if (pkt.value[i] == ';')
+            {
+                server_list[m] = malloc(64);
+                strncpy(server_list[m], pkt.value + offset, i - offset);
+                offset = i + 1;
+                m++;
+            }
+        }
+        if (offset < n)
+        {
+            server_list[m] = malloc(64);
+            strncpy(server_list[m++], pkt.value + offset, n - offset);
+        }
+        server_list[num_server] = NULL;
+        // server number does not match the delimilited 
+        if (num_server != m)
+        {
+            fprintf(stderr, "Error: Received number of server does not match");
+        }
+        close(tcp_socket);
+        break;
+    }
+    return server_list;
+}
+
+int kv739_init(char **init_list)
+{
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+    char** server_list = fetch_server(init_list);
+    if (server_list == NULL || num_server == 0)
+        return -1;
+    socket_list = malloc(num_server*sizeof(int));
+
+
+
+    for(int i = 0; i < num_server; i++)
+    {
+        struct sockaddr_in serv_addr;
+        char* server = server_list[i];
+        int tcp_socket = socket(AF_INET, SOCK_STREAM, 0);
+
+        char *address;
+        int port;
+        split_port(server, &address, &port);
         serv_addr.sin_family = AF_INET;
         serv_addr.sin_port = htons(port); 
         
@@ -137,28 +271,28 @@ int kv739_init(char **server_list)
         if(inet_pton(AF_INET, address, &serv_addr.sin_addr)<=0)  
         { 
             printf("\nInvalid address/ Address not supported \n"); 
-            return -1; 
+            continue; 
         } 
 
         if(tcp_socket < 0)
         {
             printf("\n Socket creation error \n");
-            server_list = server_list + 1;
             continue;
         }
         if (connect(tcp_socket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) 
         { 
-            printf("\nConnection Failed \n"); 
-            server_list = server_list + 1;
+            printf("\nConnection Failed on %s\n", server); 
             continue; 
         } 
-        socket_list[num_server++] = tcp_socket;
-        if(num_server >= max_server)
-        {
-            max_server *= 2;
-            server_list = realloc(server_list, max_server*sizeof(int));
-        }
-        server_list = server_list + 1;
+        socket_list[i] = tcp_socket;
+    }
+}
+
+int kv739_shutdown(void)
+{
+    for(int i = 0; i < num_server; i++)
+    {
+        close(socket_list[i]);
     }
 }
 
@@ -173,10 +307,9 @@ int kv739_get(char * key, char * value)
         int sent = 0;
         memset(buf, 0, 8192);
         struct packet pkt;
+        init_packet(&pkt);
         pkt.optype = 0;
         strcpy(pkt.key, key);
-        memset(pkt.value, 0, 2048);
-        memset(pkt.old_value, 0, 2048);
         encode(&pkt, buf);
         while((sent = send(socket_list[i] , buf , 8192 , 0)) != 8192)
         {
@@ -209,11 +342,11 @@ int kv739_put(char * key, char * value, char * old_value)
         int sent = 0;
         memset(buf, 0, 8192);
         struct packet pkt;
+        init_packet(&pkt);
         pkt.optype = 1;
         pkt.time = time(NULL);
         strcpy(pkt.key, key);
         strcpy(pkt.value, value);
-        memset(pkt.old_value, 0, 2048);
         encode(&pkt, buf);
         
         while((sent = send(socket_list[i] , buf , 8192 , 0)) != 8192)
@@ -236,3 +369,4 @@ int kv739_put(char * key, char * value, char * old_value)
     free(buf);
     return rtn;
 }
+

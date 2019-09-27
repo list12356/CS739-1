@@ -9,12 +9,12 @@
 # 	$(CC) $(FLAGS) -c client.c
 
 CC=gcc
-FLAGS=-fPIC
+FLAGS=-fPIC -Wall
 
 all:test lib739kv.so
 
-test:test.o client.o
-	$(CC) test.o client.o -o $@ 
+test:unittest.o client.o
+	$(CC) $^ -o $@ 
 
 client.o: client.c
 	$(CC) $(FLAGS) -c client.c
@@ -22,7 +22,7 @@ client.o: client.c
 lib739kv.so:client.o
 	$(CC) -shared $< -o $@
 
-test.o:test.c
+unittest.o:unittest.c
 	$(CC) -c $(FLAGS) $< -o $@
 
 clean:

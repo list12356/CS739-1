@@ -1,6 +1,7 @@
 class Message(object):
     PUT = 1
     GET = 0
+    INIT = 2
     def __init__(self):
         self.Op = 0
         self.time = 0
@@ -34,7 +35,7 @@ class CustomProtocol(object):
 
     def encode(self, msg):
         # msg.Op
-        string = (0).to_bytes(4, byteorder='little')
+        string = (msg.Op).to_bytes(4, byteorder='little')
         string += (msg.time).to_bytes(4, byteorder='little')
         string += (msg.returnValue).to_bytes(4, byteorder='little')
         string += (msg.hasOldValue).to_bytes(1, byteorder='little')
