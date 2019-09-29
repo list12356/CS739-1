@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <stdio.h>
 #include "client.h"
@@ -26,6 +27,7 @@ int num_partition;
 int num_replica;
 int* socket_list;
 struct timeval timeout;
+struct timeval tv;
 
 //TODO: use enum to represent optype
 
@@ -344,7 +346,8 @@ int kv739_put(char * key, char * value, char * old_value)
         struct packet pkt;
         init_packet(&pkt);
         pkt.optype = 1;
-        pkt.time = time(NULL);
+        gettimeofday(&tv, NULL);
+        pkt.time = time(NULL) % 10000000 *100 +  (int)(tv.tv_usec) % 100;
         strcpy(pkt.key, key);
         strcpy(pkt.value, value);
         encode(&pkt, buf);
