@@ -13,7 +13,8 @@ def main(server_list):
     test_correct_multiple(server_list)
     # test_order_single(server_list)
     # test_order_multiple(server_list)
-    test_throughput(server_list)
+    # test_throughput(server_list)
+    test_dist_throughput(server_list)
 
 def test_correct_single(server_list):
     # basic correctness
@@ -74,6 +75,41 @@ def test_throughput(server_list):
     
     rate = (10*10000*(2048+32)/1024/1024/elapsed_time)
     print("Througput for uniform key: {:.3f} MB/s".format(rate))  
+
+def _dist_throughput(server, key_list, value):
+    client = Client([server])
+    elapsed_time = 0
+    random.shuffle(key_list)
+    for i in range(10):
+        for key in key_list:
+            start = time.time()
+            client.put(key, value)
+            elapsed_time += time.time() - start
+    
+    rate = (10*10000*(2048+32)/1024/1024/elapsed_time)
+    print("Througput for single client: {:.3f} MB/s".format(rate))  
+    # rate_dict[server_id] = 10*10000*(2048+32)/1024/1024/elapsed_time
+
+def test_dist_throughput(server_list):
+    num_key = 10000
+    key_list = [''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)]) for x in range(num_key)]
+    value = ''.rjust(2048, '0')
+    print("Testing throughput from multiple client")
+    process_list = []
+    start = time.time()
+    for server in server_list:
+        for i in range(10):
+            p = Process(target=_dist_throughput, args=(server, key_list, value, ))
+            # p = Process(target=test_throughput, args=([server], ))
+            p.start()
+            process_list.append(p)
+    for p in process_list:
+        p.join()
+    elapsed_time = time.time() - start
+
+    rate = (len(server_list)*10*10*10000*(2048+32)/1024/1024/elapsed_time)
+    print("Througput for uniform key from multiple client: {:.3f} MB/s".format(rate))  
+
  
 def test_order_single(server_list, verbose=True):
     if verbose:
@@ -94,9 +130,10 @@ def test_order_multiple(server_list):
     print("Testing adding counter from multiple client")
     process_list = []
     for server in server_list:
-        p = Process(target=test_order_single, args=([server], False, ))
-        p.start()
-        process_list.append(p)
+        for i in range(5):
+            p = Process(target=test_order_single, args=([server], False, ))
+            p.start()
+            process_list.append(p)
     for p in process_list:
         p.join()
     client = Client(server_list)
