@@ -74,7 +74,24 @@ def test_throughput(server_list):
             elapsed_time += time.time() - start
     
     rate = (10*10000*(2048+32)/1024/1024/elapsed_time)
-    print("Througput for uniform key: {:.3f} MB/s".format(rate))  
+    print("Put operation througput for uniform key: {:.3f} MB/s".format(rate))
+
+    random.shuffle(key_list)
+    elapsed_get_time = 0
+    for i in range(10):
+        for key in key_list:
+            start = time.time()
+            client.get(key)
+            elapsed_get_time += time.time() - start
+    get_rate = (10*10000*(2048+32)/1024/1024/elapsed_get_time)
+    print("Get operation througput for uniform key: {:.3f} MB/s".format(get_rate))
+
+    # Estimate average latency per query
+    latency_put = elapsed_time / (10*10000) / 1e3
+    latency_get = elapsed_get_time / (10*10000) / 1e3
+    print("Put average latency: {:.3f} ms".format(latency_put))
+    print("Get average latency: {:.3f} ms".format(latency_get))
+
 
 def _dist_throughput(server, key_list, value):
     client = Client([server])
@@ -89,6 +106,9 @@ def _dist_throughput(server, key_list, value):
     rate = (10*10000*(2048+32)/1024/1024/elapsed_time)
     print("Througput for single client: {:.3f} MB/s".format(rate))  
     # rate_dict[server_id] = 10*10000*(2048+32)/1024/1024/elapsed_time
+
+    latency_put = elapsed_time / (10*10000) / 1e6
+    print("Put average latency for single client: {:.3f} ms".format(latency_put))
 
 def test_dist_throughput(server_list):
     num_key = 10000
