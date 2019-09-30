@@ -10,12 +10,14 @@ num_key = 100
 
 def main(server_list):
     # basic correctness
-    # test_correct_single(server_list)
+    test_correct_single(server_list)
     # test_correct_multiple(server_list)
     # test_order_single(server_list)
     # test_order_multiple(server_list)
     # test_throughput(server_list)
-    # test_dist_throughput(server_list)
+    test_dist_throughput(server_list)
+    # test_latency(server_list)
+    # test_dist_latency(server_list)
 
 def test_correct_single(server_list):
     # basic correctness
@@ -88,7 +90,7 @@ def test_throughput(server_list):
     print("Testing througput...")
     client = Client(server_list)
     key_list = [''.join([random.choice(string.ascii_letters + string.digits) for n in range(32)]) for x in range(num_key)]
-    value = ''.rjust(2048, '0')
+    value = ''.rjust(1024, '0')
     failure = 0
     elapsed_time = 0
     for i in range(10):
@@ -100,7 +102,7 @@ def test_throughput(server_list):
             elapsed_time += time.time() - start
     
     print(failure)
-    rate = (10*num_key*(2048+32)/1024/1024/elapsed_time)
+    rate = (10*num_key*(1024+32)/1024/1024/elapsed_time)
     print("Througput for uniform key: {:.3f} MB/s".format(rate))  
 
 def _dist_throughput(server, key_list, value):
@@ -116,7 +118,7 @@ def _dist_throughput(server, key_list, value):
                 failure += 1
             elapsed_time += time.time() - start
     
-    rate = (10*num_key*(2048+32)/1024/1024/elapsed_time)
+    rate = (10*num_key*(1024+32)/1024/1024/elapsed_time)
     client.shutdown()
     print(failure)
     print("Througput for single client: {:.3f} MB/s".format(rate))  
@@ -139,7 +141,7 @@ def test_dist_throughput(server_list):
         p.join()
     elapsed_time = time.time() - start
 
-    rate = (len(server_list)*10*10*num_key*(2048+32)/1024/1024/elapsed_time)
+    rate = (len(server_list)*10*10*num_key*(1024+32)/1024/1024/elapsed_time)
     print("Througput for uniform key from multiple client: {:.3f} MB/s".format(rate))  
 
  
@@ -172,6 +174,65 @@ def test_order_multiple(server_list):
     client = Client(server_list)
     val, _ = client.get("counter")
     print("Expected get counter {}, actual get: {}".format(TEST_COUNTER, val))
+
+
+def test_latency(server_list):
+    # test latency of uniform key for put
+    print("Testing latency...")
+    client = Client(server_list)
+    key_list = [''.join([random.choice(string.ascii_letters + string.digits) for n in range(32)]) for x in range(num_key)]
+    value = ''.rjust(1024, '0')
+    failure = 0
+    elapsed_time = 0
+    for i in range(10):
+        for key in key_list:
+            start = time.time()
+            old_val, rtn = client.put(key, value)
+            if (rtn == -1):
+                failure += 1
+            elapsed_time += time.time() - start
+    
+    print(failure)
+    print(elapsed_time)
+    latency = elapsed_time / (10*num_key) * 1e3
+    print("Average latency for uniform key: {:.3f} ms".format(latency))  
+
+def _dist_latency(server, key_list, value):
+    client = Client([server])
+    elapsed_time = 0
+    failure = 0
+    random.shuffle(key_list)
+    for i in range(10):
+        for key in key_list:
+            start = time.time()
+            old_val, rtn = client.put(key, value)
+            if (rtn == -1):
+                failure += 1
+            elapsed_time += time.time() - start
+    
+    rate = (10*num_key*(1024+32)/1024/1024/elapsed_time)
+    client.shutdown()
+    if failure > 0:
+        print(failure)
+    latency = elapsed_time / (10*num_key) * 1e3
+    print("Average latency for uniform key: {:.3f} ms".format(latency))  
+
+def test_dist_latency(server_list):
+    key_list = [''.join([random.choice(string.ascii_letters + string.digits) for n in range(32)]) for x in range(num_key)]
+    # value = ''.rjust(2048, '0')
+    value = '0'
+    print("Testing latency from multiple client")
+    process_list = []
+    start = time.time()
+    for server in server_list:
+        for i in range(10):
+            p = Process(target=_dist_latency, args=(server, key_list, value, ))
+            # p = Process(target=test_throughput, args=([server], ))
+            p.start()
+            process_list.append(p)
+    for p in process_list:
+        p.join()
+    elapsed_time = time.time() - start
 
 
 if __name__ == "__main__":
