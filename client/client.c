@@ -142,6 +142,7 @@ char** fetch_server(char** init_list)
 {
     char *buf = malloc(8192);
     int sent = 0;
+    int num_read = 0;
     char **server_list = NULL;
     struct packet pkt;
     init_packet(&pkt);
@@ -204,7 +205,11 @@ char** fetch_server(char** init_list)
             close(tcp_socket);
             continue;
         }
-        int rtn = read(tcp_socket , buf, 8192);
+        num_read = read(tcp_socket , buf, 8192);
+        if (num_read < 0)
+        {
+            close(tcp_socket);
+        }
         decode(&pkt, buf);
         
         num_server = pkt.return_value;
@@ -304,12 +309,19 @@ int kv739_shutdown(void)
     {
         close(socket_list[i]);
     }
+    if (socket_list != NULL)
+    {
+        free(socket_list);
+    }
+    socket_list = NULL;
+    num_server = 0;
 }
 
 int kv739_get(char * key, char * value)
 {
     int latest = -2147483648;
     int rtn = 0;
+    int num_read = 0;
     char *buf = malloc(8192);
     struct packet pkt;
     init_packet(&pkt);
@@ -329,7 +341,9 @@ int kv739_get(char * key, char * value)
         }
         if (sent != 8192)
             continue;
-        int rtn = read(socket_list[i] , buf, 8192);
+        num_read = read(socket_list[i] , buf, 8192);
+        if (num_read < 0)
+            continue;
         decode(&pkt, buf);
         // print_packet(&pkt);
         if (pkt.time > latest)
@@ -346,7 +360,7 @@ int kv739_get(char * key, char * value)
 int kv739_put(char * key, char * value, char * old_value)
 {
     int latest = -2147483648;
-    int rtn = 0;
+    int rtn = 0, num_read = 0;
     char *buf = malloc(8192);
     struct packet pkt;
     init_packet(&pkt);
@@ -370,7 +384,9 @@ int kv739_put(char * key, char * value, char * old_value)
         }
         if (sent != 8192)
             continue;
-        int rtn = read(socket_list[i] , buf, 8192);
+        num_read = read(socket_list[i] , buf, 8192);
+        if (num_read < 0)
+            continue;
         decode(&pkt, buf);
         // print_packet(&pkt);
         if (pkt.time > latest)

@@ -155,7 +155,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         cur_thread = threading.current_thread()
         # print('Handling request thread: {!s}'.format(cur_thread.name))
         while True:
-            data = self.request.recv(16384)
+            data = self.request.recv(8192)
             if not data:
                 break
             response = kv_server.processRequest(data)

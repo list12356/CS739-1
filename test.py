@@ -6,6 +6,7 @@ import random
 import string
 
 TEST_COUNTER = 50000
+num_key = 100
 
 def main(server_list):
     # basic correctness
@@ -63,7 +64,6 @@ def test_throughput(server_list):
     # test throughput of uniform key for put
     print("Testing througput...")
     client = Client(server_list)
-    num_key = 10000
     key_list = [''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)]) for x in range(num_key)]
     value = ''.rjust(2048, '0')
     elapsed_time = 0
@@ -73,7 +73,7 @@ def test_throughput(server_list):
             client.put(key, value)
             elapsed_time += time.time() - start
     
-    rate = (10*10000*(2048+32)/1024/1024/elapsed_time)
+    rate = (10*num_key*(2048+32)/1024/1024/elapsed_time)
     print("Througput for uniform key: {:.3f} MB/s".format(rate))  
 
 def _dist_throughput(server, key_list, value):
@@ -86,12 +86,11 @@ def _dist_throughput(server, key_list, value):
             client.put(key, value)
             elapsed_time += time.time() - start
     
-    rate = (10*10000*(2048+32)/1024/1024/elapsed_time)
+    rate = (10*num_key*(2048+32)/1024/1024/elapsed_time)
     print("Througput for single client: {:.3f} MB/s".format(rate))  
     # rate_dict[server_id] = 10*10000*(2048+32)/1024/1024/elapsed_time
 
 def test_dist_throughput(server_list):
-    num_key = 10000
     key_list = [''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(32)]) for x in range(num_key)]
     value = ''.rjust(2048, '0')
     print("Testing throughput from multiple client")
@@ -107,7 +106,7 @@ def test_dist_throughput(server_list):
         p.join()
     elapsed_time = time.time() - start
 
-    rate = (len(server_list)*10*10*10000*(2048+32)/1024/1024/elapsed_time)
+    rate = (len(server_list)*10*10*num_key*(2048+32)/1024/1024/elapsed_time)
     print("Througput for uniform key from multiple client: {:.3f} MB/s".format(rate))  
 
  

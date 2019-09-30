@@ -25,3 +25,9 @@ class Client:
         rtn = ctypes.create_string_buffer(2048)
         _client.kv739_get(key.encode("ascii").ljust(128, b'\0'), rtn)
         return rtn.value.decode("utf-8")
+    
+    def shutdown(self):
+        _client.kv739_shutdown()
+
+    def __del__(self):
+        self.shutdown()
