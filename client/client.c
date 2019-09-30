@@ -327,6 +327,7 @@ int kv739_get(char * key, char * value)
         if (pkt.time > latest)
         {
             strcpy(value, pkt.value);
+            latest = pkt.time;
             rtn = 1 - pkt.has_val;
         }
     }
@@ -347,7 +348,7 @@ int kv739_put(char * key, char * value, char * old_value)
         init_packet(&pkt);
         pkt.optype = 1;
         gettimeofday(&tv, NULL);
-        pkt.time = time(NULL) % 10000000 *100 +  (int)(tv.tv_usec) % 100;
+        pkt.time = time(NULL) % 10000000 *100 +  (int)(tv.tv_usec) / 10000 % 100;
         strcpy(pkt.key, key);
         strcpy(pkt.value, value);
         encode(&pkt, buf);
