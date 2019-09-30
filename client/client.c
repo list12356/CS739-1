@@ -36,9 +36,9 @@ struct packet
     int return_value;
     char has_old_val;
     char has_val;
-    char *key;
-    char *value;
-    char *old_value;
+    char key[128];
+    char value[2048];
+    char old_value[2048];
 };
 
 int print_packet(struct packet* pkt)
@@ -60,12 +60,19 @@ int init_packet(struct packet* pkt)
     pkt->return_value = 0;
     pkt->has_old_val = 0;
     pkt->has_val = 0;
-    pkt->key = malloc(128);
+    // pkt->key = malloc(128);
     memset(pkt->key, 0, 128);
-    pkt->value = malloc(2048);
+    // pkt->value = malloc(2048);
     memset(pkt->value, 0, 2048);
-    pkt->old_value = malloc(2048);
+    // pkt->old_value = malloc(2048);
     memset(pkt->old_value, 0, 2048);
+}
+
+int release_packet(struct packet* pkt)
+{
+    free(pkt->key);
+    free(pkt->value);
+    free(pkt->old_value);
 }
 
 // use little endian to encode integer
@@ -134,6 +141,8 @@ char** fetch_server(char** init_list)
     char *buf = malloc(8192);
     int sent = 0;
     char **server_list = NULL;
+    struct packet pkt;
+    init_packet(&pkt);
 
     for(;*init_list != NULL; init_list++)
     {
@@ -184,8 +193,6 @@ char** fetch_server(char** init_list)
             continue; 
         }
         memset(buf, 0, 8192);
-        struct packet pkt;
-        init_packet(&pkt);
         pkt.optype = 2;
         encode(&pkt, buf);
         sent = send(tcp_socket , buf , 8192 , 0);
@@ -230,6 +237,7 @@ char** fetch_server(char** init_list)
         {
             fprintf(stderr, "Error: Received number of server does not match");
         }
+        //release_packet(&pkt);
         close(tcp_socket);
         break;
     }
@@ -301,13 +309,13 @@ int kv739_get(char * key, char * value)
     int latest = -2147483648;
     int rtn = 0;
     char *buf = malloc(8192);
+    struct packet pkt;
+    init_packet(&pkt);
     for(int i = 0; i < num_server; i++)
     {
         int retry = 0;
         int sent = 0;
         memset(buf, 0, 8192);
-        struct packet pkt;
-        init_packet(&pkt);
         pkt.optype = 0;
         strcpy(pkt.key, key);
         encode(&pkt, buf);
@@ -329,6 +337,7 @@ int kv739_get(char * key, char * value)
         }
     }
     free(buf);
+    // release_packet(&pkt);
     return rtn;
 }
 int kv739_put(char * key, char * value, char * old_value)
@@ -336,13 +345,13 @@ int kv739_put(char * key, char * value, char * old_value)
     int latest = -2147483648;
     int rtn = 0;
     char *buf = malloc(8192);
+    struct packet pkt;
+    init_packet(&pkt);
     for(int i = 0; i < num_server; i++)
     {
         int retry = 0;
         int sent = 0;
         memset(buf, 0, 8192);
-        struct packet pkt;
-        init_packet(&pkt);
         pkt.optype = 1;
         pkt.time = time(NULL);
         strcpy(pkt.key, key);
@@ -366,6 +375,7 @@ int kv739_put(char * key, char * value, char * old_value)
             rtn = 1 - pkt.has_old_val;
         }
     }
+    // release_packet(&pkt);
     free(buf);
     return rtn;
 }
