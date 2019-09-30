@@ -107,7 +107,7 @@ def _dist_throughput(server, key_list, value):
     print("Througput for single client: {:.3f} MB/s".format(rate))  
     # rate_dict[server_id] = 10*10000*(2048+32)/1024/1024/elapsed_time
 
-    latency_put = elapsed_time / (10*10000) / 1e6
+    latency_put = elapsed_time / (10*10000) / 1e3
     print("Put average latency for single client: {:.3f} ms".format(latency_put))
 
 def test_dist_throughput(server_list):
