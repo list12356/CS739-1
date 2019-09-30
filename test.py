@@ -10,8 +10,8 @@ num_key = 100
 
 def main(server_list):
     # basic correctness
-    test_correct_single(server_list)
-    test_correct_multiple(server_list)
+    # test_correct_single(server_list)
+    # test_correct_multiple(server_list)
     # test_order_single(server_list)
     # test_order_multiple(server_list)
     # test_throughput(server_list)
@@ -42,6 +42,7 @@ def test_correct_single(server_list):
     val = client.get("cc")
     if val != "66":
         print("Inconsistent value, exepected: 66, get: {}".format(val))
+    client.shutdown()
     print("Test Succeed!")
 
 def test_correct_multiple(server_list):
@@ -56,6 +57,8 @@ def test_correct_multiple(server_list):
             if value != server_list[i]:
                 print("Inconsistent value, exepected: {}, get: {}".format(server_list[i], value))
                 return -1
+    for client in client_list:
+        client.shutdown()
     print("Test Succeed!")
     return 0
 
@@ -87,6 +90,7 @@ def _dist_throughput(server, key_list, value):
             elapsed_time += time.time() - start
     
     rate = (10*num_key*(2048+32)/1024/1024/elapsed_time)
+    client.shutdown()
     print("Througput for single client: {:.3f} MB/s".format(rate))  
     # rate_dict[server_id] = 10*10000*(2048+32)/1024/1024/elapsed_time
 

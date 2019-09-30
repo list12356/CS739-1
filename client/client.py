@@ -29,5 +29,5 @@ class Client:
     def shutdown(self):
         _client.kv739_shutdown()
 
-    def __del__(self):
-        self.shutdown()
+    # def __del__(self):
+    #     self.shutdown()
