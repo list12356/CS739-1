@@ -112,8 +112,8 @@ int decode(struct packet* pkt, char* str)
     decode_int(str, &pkt -> optype);
     decode_int(str+4, &pkt -> time);
     decode_int(str+8, &pkt -> return_value);
-    str[12] = pkt -> has_old_val;
-    str[13] = pkt -> has_val;
+    pkt -> has_old_val = str[12]; 
+    pkt -> has_val = str[13];
     strcpy(pkt -> key, str + 128);
     strcpy(pkt -> value, str + 256);
     strcpy(pkt -> old_value, str + 2304);
@@ -388,7 +388,7 @@ int kv739_put(char * key, char * value, char * old_value)
         if (num_read < 0)
             continue;
         decode(&pkt, buf);
-        print_packet(&pkt);
+        //print_packet(&pkt);
         if (pkt.time > latest)
         {
             strcpy(old_value, pkt.old_value);
