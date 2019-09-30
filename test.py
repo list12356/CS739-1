@@ -17,8 +17,8 @@ num_key = 100
 def main(server_list):
     test_setup(server_list)
     # basic correctness
-    # test_correct_single(server_list)
-    # test_correct_multiple(server_list)
+    test_correct_single(server_list)
+    test_correct_multiple(server_list)
     # test_order_single(server_list)
     # test_order_multiple(server_list)
     # test_throughput(server_list)
@@ -38,25 +38,25 @@ def test_correct_single(server_list):
     print("Testing basic correctness")
     client = Client(server_list)
     old_val, rtn = client.put("aa", "11")
-    if rtn != 0:
+    if rtn != 1:
         print("Incorrect return value!")
     old_val, rtn = client.put("bb", "22")
-    if rtn != 0:
+    if rtn != 1:
         print("Incorrect return value!")
     old_val, rtn = client.put("cc", "33")
-    if rtn != 0:
+    if rtn != 1:
         print("Incorrect return value!")
-    old_val, rtn = client.put("aa", "44")
+    old_val, rtn = client.put("cc", "44")
     if rtn != 0:
         print("Incorrect return value!")
     if old_val != "11":
         print("Inconsistent value, exepected: 11, get: {}".format(old_val))
-    old_val, rtn = client.put("bb", "55")
+    old_val, rtn = client.put("aa", "55")
     if rtn != 0:
         print("Incorrect return value!")
     if old_val != "22":
         print("Inconsistent value, exepected: 22, get: {}".format(old_val))
-    old_val, rtn = client.put("cc", "66")
+    old_val, rtn = client.put("bb", "66")
     if rtn != 0:
         print("Incorrect return value!")
     if old_val != "33":
@@ -64,17 +64,17 @@ def test_correct_single(server_list):
     val, rtn = client.get("aa")
     if rtn != 0:
         print("Incorrect return value!")
-    if val != "44":
+    if val != "55":
         print("Inconsistent value, exepected: 44, get: {}".format(val))
     val, rtn = client.get("bb")
     if rtn != 0:
         print("Incorrect return value!")
-    if val != "55":
+    if val != "66":
         print("Inconsistent value, exepected: 55, get: {}".format(val))
     val, rtn = client.get("cc")
     if rtn != 0:
         print("Incorrect return value!")
-    if val != "66":
+    if val != "43":
         print("Inconsistent value, exepected: 66, get: {}".format(val))
     client.shutdown()
     print("Test Succeed!")
@@ -85,7 +85,6 @@ def test_correct_multiple(server_list):
     for server in server_list:
         client_list.append(Client([server]))
     for i in range(len(client_list)):
-        print("putting value for server: {}".format(i))
         client_list[i].put("test_server_name", server_list[i])
         for j in range(len(client_list)):
             value, rtn = client_list[j].get("test_server_name")
@@ -218,10 +217,11 @@ def _test_unblock(server):
     socket_dict[server].sendall(protocol.encode(msg))
 
 def test_block(server_list):
-    for k in range(len(server_list) - 1):
+    for k in range(len(server_list)):
         test_block_K(server_list, k)
 
-def _test_block_put(client, ind, trail, key_list, success_dict):
+def _test_block_put(server_list, ind, trail, key_list, success_dict):
+    client = Client(server_list)
     success = 0
     for i in range(trail):
         val, rtn = client.put(key_list[i + ind*trail], str(i + ind*trail))
@@ -230,23 +230,21 @@ def _test_block_put(client, ind, trail, key_list, success_dict):
     success_dict[ind] = success
     # print("Client id: {}, success put: {}".format(ind, success))
 
-def _test_block_get(client, ind, trail, key_list, success_dict):
+def _test_block_get(server_list, ind, trail, key_list, success_dict):
+    client = Client(server_list)
     success = 0
     for i in range(trail):
         val, rtn = client.get(key_list[i + ind*trail])
         if rtn == 0 and val == str(i + ind*trail):
             success += 1
         else:
-            print("return: {}, expected value: {}, get: {}".format(rtn, i + ind*trail, val))
+            print("client: {}, return: {}, expected value: {}, get: {}".format(ind, rtn, i + ind*trail, val))
     success_dict[ind] = success
     # print("Client id: {}, success get: {}".format(ind, success))
 
 def test_block_K(server_list, k, trail=100):
     print("Testing put/get random key with {} random server fail.".format(k))
     key_list = [''.join([random.choice(string.ascii_letters + string.digits) for n in range(32)]) for x in range(trail)]
-    client_list = []
-    for i in range(trail//5):
-        client_list.append(Client(server_list))
 
     block_list = random.sample(server_list, k)
     for server in block_list:
@@ -257,7 +255,7 @@ def test_block_K(server_list, k, trail=100):
     success_dict = manager.dict()
     process_list = []
     for i in range(trail//5):
-        p = Process(target=_test_block_put, args=(client_list[i], i, 5, key_list, success_dict ))
+        p = Process(target=_test_block_put, args=(server_list, i, 5, key_list, success_dict ))
         p.start()
         process_list.append(p)
 
@@ -281,7 +279,7 @@ def test_block_K(server_list, k, trail=100):
     process_list = []
     success = 0
     for i in range(trail//5):
-        p = Process(target=_test_block_get, args=(client_list[i], i, 5, key_list, success_dict ))
+        p = Process(target=_test_block_get, args=(server_list, i, 5, key_list, success_dict ))
         p.start()
         process_list.append(p)
 
