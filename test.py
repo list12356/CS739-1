@@ -22,24 +22,42 @@ def test_correct_single(server_list):
     print("Testing basic correctness")
     client = Client(server_list)
     old_val, rtn = client.put("aa", "11")
+    if rtn != 0:
+        print("Incorrect return value!")
     old_val, rtn = client.put("bb", "22")
+    if rtn != 0:
+        print("Incorrect return value!")
     old_val, rtn = client.put("cc", "33")
-    old_val, rt, rtnn = client.put("aa", "44")
+    if rtn != 0:
+        print("Incorrect return value!")
+    old_val, rtn = client.put("aa", "44")
+    if rtn != 0:
+        print("Incorrect return value!")
     if old_val != "11":
         print("Inconsistent value, exepected: 11, get: {}".format(old_val))
     old_val, rtn = client.put("bb", "55")
+    if rtn != 0:
+        print("Incorrect return value!")
     if old_val != "22":
         print("Inconsistent value, exepected: 22, get: {}".format(old_val))
     old_val, rtn = client.put("cc", "66")
+    if rtn != 0:
+        print("Incorrect return value!")
     if old_val != "33":
         print("Inconsistent value, exepected: 33, get: {}".format(old_val))
     val, rtn = client.get("aa")
+    if rtn != 0:
+        print("Incorrect return value!")
     if val != "44":
         print("Inconsistent value, exepected: 44, get: {}".format(val))
     val, rtn = client.get("bb")
+    if rtn != 0:
+        print("Incorrect return value!")
     if val != "55":
         print("Inconsistent value, exepected: 55, get: {}".format(val))
     val, rtn = client.get("cc")
+    if rtn != 0:
+        print("Incorrect return value!")
     if val != "66":
         print("Inconsistent value, exepected: 66, get: {}".format(val))
     client.shutdown()
@@ -129,12 +147,13 @@ def test_order_single(server_list, verbose=True):
     client = Client(server_list)
     client.put("counter", "xxx")
     for i in range(1 + TEST_COUNTER):
-        old_val = client.put("counter", str(i))
-        if old_val == '':
+        old_val, rtn = client.put("counter", str(i))
+        if rtn == -1:
             failure += 1
     print("Total Failuer: {!s}".format(failure))
     if verbose:
-        print("Total counter: {}, actual get: {}".format(TEST_COUNTER, client.get("counter")))
+        val, _ = client.get("counter")
+        print("Total counter: {}, actual get: {}".format(TEST_COUNTER, val))
 
 def test_order_multiple(server_list):
     # provide each client single server
@@ -148,7 +167,8 @@ def test_order_multiple(server_list):
     for p in process_list:
         p.join()
     client = Client(server_list)
-    print("Expected get counter {}, actual get: {}".format(TEST_COUNTER, client.get("counter")))
+    val, _ = client.get("counter")
+    print("Expected get counter {}, actual get: {}".format(TEST_COUNTER, val))
 
 
 if __name__ == "__main__":
