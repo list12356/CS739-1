@@ -10,12 +10,12 @@ num_key = 100
 
 def main(server_list):
     # basic correctness
-    # test_correct_single(server_list)
-    # test_correct_multiple(server_list)
+    test_correct_single(server_list)
+    test_correct_multiple(server_list)
     # test_order_single(server_list)
     # test_order_multiple(server_list)
     # test_throughput(server_list)
-    test_dist_throughput(server_list)
+    # test_dist_throughput(server_list)
 
 def test_correct_single(server_list):
     # basic correctness
@@ -24,7 +24,7 @@ def test_correct_single(server_list):
     old_val, rtn = client.put("aa", "11")
     old_val, rtn = client.put("bb", "22")
     old_val, rtn = client.put("cc", "33")
-    old_val, rt, rtnn = client.put("aa", "44")
+    old_val, rtn = client.put("aa", "44")
     if old_val != "11":
         print("Inconsistent value, exepected: 11, get: {}".format(old_val))
     old_val, rtn = client.put("bb", "55")
@@ -51,12 +51,14 @@ def test_correct_multiple(server_list):
     for server in server_list:
         client_list.append(Client([server]))
     for i in range(len(client_list)):
+        print("putting value for server: {}".format(i))
         client_list[i].put("test_server_name", server_list[i])
         for j in range(len(client_list)):
-            value = client_list[j].get("test_server_name")
+            value, rtn = client_list[j].get("test_server_name")
             if value != server_list[i]:
                 print("Inconsistent value, exepected: {}, get: {}".format(server_list[i], value))
-                return -1
+            if rtn != 0:
+                print("Incorrect rtn from client: {}".format(j))
     for client in client_list:
         client.shutdown()
     print("Test Succeed!")

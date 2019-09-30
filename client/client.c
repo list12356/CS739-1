@@ -45,7 +45,7 @@ struct packet
 
 int print_packet(struct packet* pkt)
 {
-    printf("%d, %d, %d, %c, %c, ",
+    printf("%d, %d, %d, %d, %d, ",
         pkt->optype, pkt->time, pkt->return_value, pkt->has_old_val, pkt->has_val);
         if (pkt->key)
             printf("%s, ", pkt->key);
@@ -388,7 +388,7 @@ int kv739_put(char * key, char * value, char * old_value)
         if (num_read < 0)
             continue;
         decode(&pkt, buf);
-        // print_packet(&pkt);
+        print_packet(&pkt);
         if (pkt.time > latest)
         {
             strcpy(old_value, pkt.old_value);
