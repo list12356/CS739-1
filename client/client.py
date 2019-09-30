@@ -17,14 +17,14 @@ class Client:
     def put(self, key, value):
         old_value = ctypes.create_string_buffer(2048)
         # import pdb; pdb.set_trace()
-        _client.kv739_put(key.encode("ascii").ljust(128, b'\0'),\
+        rtn = _client.kv739_put(key.encode("ascii").ljust(128, b'\0'),\
             value.encode("ascii").ljust(2048, b'\0'), old_value)
-        return old_value.value.decode("utf-8")
+        return old_value.value.decode("utf-8"), rtn
     
     def get(self, key):
-        rtn = ctypes.create_string_buffer(2048)
-        _client.kv739_get(key.encode("ascii").ljust(128, b'\0'), rtn)
-        return rtn.value.decode("utf-8")
+        val = ctypes.create_string_buffer(2048)
+        rtn = _client.kv739_get(key.encode("ascii").ljust(128, b'\0'), val)
+        return val.value.decode("utf-8"), rtn
     
     def shutdown(self):
         _client.kv739_shutdown()
