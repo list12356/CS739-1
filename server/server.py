@@ -23,6 +23,7 @@ class KVServer:
         self.port = port
         self.host = "localhost"
         self.server_list = server_list
+        self.block = False
     
     def saveDictIfTimeOut(self):
         if self.getTime() - self.lastSaveTime > 5:
@@ -78,6 +79,12 @@ class KVServer:
 
         # message.print()
         ACK = custom_protocol.Message()
+        if message.Op == custom_protocol.Message.BLOCK:
+            self.block = True
+        if message.Op == custom_protocol.Message.UNBLOCK:
+            self.block = False
+        if self.block:
+            return None
         if message.Op == custom_protocol.Message.PUT:
             returnVal, oldValue = self.put(message.key, message.value, message.time)
             # print(returnVal, oldValue)
@@ -113,6 +120,7 @@ class KVServer:
                 pass
             
             return self.protocol.encode(ACK)
+            
 
     def get(self, key):
         # get the value and timestamp for the given key

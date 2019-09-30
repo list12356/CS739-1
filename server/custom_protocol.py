@@ -2,6 +2,8 @@ class Message(object):
     PUT = 1
     GET = 0
     INIT = 2
+    BLOCK = 3
+    UNBLOCK = 4
     def __init__(self):
         self.Op = 0
         self.time = 0
@@ -11,10 +13,9 @@ class Message(object):
         self.returnValue = 0
         self.hasValue = 0
         self.hasOldValue = 0
-
     
-    def print(self):
-        print(self.__dict__)
+   # def print(self):
+   #     print(self.__dict__)
 
 
 class CustomProtocol(object):

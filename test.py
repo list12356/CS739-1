@@ -1,13 +1,19 @@
 from client.client import Client
+from server.custom_protocol import CustomProtocol
+from server.custom_protocol import Message
 
 from multiprocessing import Process
 import time
 import random
 import string
+import socket
 
 TEST_COUNTER = 50000
+socket_dict = {}
+protocol = CustomProtocol()
 
 def main(server_list):
+    test_setup(server_list)
     # basic correctness
     test_correct_single(server_list)
     test_correct_multiple(server_list)
@@ -15,6 +21,15 @@ def main(server_list):
     # test_order_multiple(server_list)
     # test_throughput(server_list)
     test_dist_throughput(server_list)
+
+def test_setup(server_list):
+    for server in server_list:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#        import pdb; pdb.set_trace()
+        addr, port = server.split(':')
+        s.connect(tuple([addr, int(port)]))
+        socket_dict[server] = s 
+   
 
 def test_correct_single(server_list):
     # basic correctness
@@ -107,7 +122,7 @@ def _dist_throughput(server, key_list, value):
     print("Througput for single client: {:.3f} MB/s".format(rate))  
     # rate_dict[server_id] = 10*10000*(2048+32)/1024/1024/elapsed_time
 
-    latency_put = elapsed_time / (10*10000) / 1e6
+    latency_put = elapsed_time / (10*10000) / 1e3
     print("Put average latency for single client: {:.3f} ms".format(latency_put))
 
 def test_dist_throughput(server_list):
@@ -159,7 +174,27 @@ def test_order_multiple(server_list):
     client = Client(server_list)
     print("Expected get counter {}, actual get: {}".format(TEST_COUNTER, client.get("counter")))
 
+def _test_block(server):
+    msg = Message()
+    msg.Op = Message.BLOCK  
+    socket_dict[server].sendall(protocol.encode(msg))
+    
+def _test_unblock(server):
+    msg = Message()
+    msg.Op = Message.UNBLOCK
+    socket_dict[server].sendall(protocol.encode(msg))
 
+def test_block(server_list):
+    client = Client(server_list)
+    client.put("block_key", "aaa")
+    for server in server_list:
+        _test_block(server)
+    print(client.get("block_key"))
+    for server in server_list:
+        _test_unblock(server)
+    print(client.get("block_key"))
+    
+    
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
