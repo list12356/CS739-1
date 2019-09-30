@@ -80,9 +80,13 @@ class KVServer:
         # message.print()
         ACK = custom_protocol.Message()
         if message.Op == custom_protocol.Message.BLOCK:
+            print("Server {}:{} now blocking.".format(self.host, self.port))
             self.block = True
+            return None
         if message.Op == custom_protocol.Message.UNBLOCK:
+            print("Server {}:{} now unblocked.".format(self.host, self.port))
             self.block = False
+            return None
         if self.block:
             return None
         if message.Op == custom_protocol.Message.PUT:
@@ -163,7 +167,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         cur_thread = threading.current_thread()
         # print('Handling request thread: {!s}'.format(cur_thread.name))
         while True:
-            data = self.request.recv(16384)
+            data = self.request.recv(8192)
             if not data:
                 break
             response = kv_server.processRequest(data)

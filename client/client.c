@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <stdio.h>
 #include "client.h"
@@ -26,6 +27,7 @@ int num_partition;
 int num_replica;
 int* socket_list;
 struct timeval timeout;
+struct timeval tv;
 
 //TODO: use enum to represent optype
 
@@ -36,14 +38,14 @@ struct packet
     int return_value;
     char has_old_val;
     char has_val;
-    char *key;
-    char *value;
-    char *old_value;
+    char key[128];
+    char value[2048];
+    char old_value[2048];
 };
 
-int print_packet(struct packet* pkt)
+void print_packet(struct packet* pkt)
 {
-    printf("%d, %d, %d, %c, %c, ",
+    printf("%d, %d, %d, %d, %d, ",
         pkt->optype, pkt->time, pkt->return_value, pkt->has_old_val, pkt->has_val);
         if (pkt->key)
             printf("%s, ", pkt->key);
@@ -60,16 +62,17 @@ int init_packet(struct packet* pkt)
     pkt->return_value = 0;
     pkt->has_old_val = 0;
     pkt->has_val = 0;
-    pkt->key = malloc(128);
+    // pkt->key = malloc(128);
     memset(pkt->key, 0, 128);
-    pkt->value = malloc(2048);
+    // pkt->value = malloc(2048);
     memset(pkt->value, 0, 2048);
-    pkt->old_value = malloc(2048);
+    // pkt->old_value = malloc(2048);
     memset(pkt->old_value, 0, 2048);
+    return 0;
 }
 
 // use little endian to encode integer
-int encode_int(char* bytes, int n)
+void encode_int(char* bytes, int n)
 {
     bytes[3] = (n >> 24) & 0xFF;
     bytes[2] = (n >> 16) & 0xFF;
@@ -77,7 +80,7 @@ int encode_int(char* bytes, int n)
     bytes[0] = n & 0xFF;
 }
 
-int decode_int(char* bytes, int* n)
+void decode_int(char* bytes, int* n)
 {
     *n = 0;
     *n = bytes[0] + (bytes[1] << 8) + (bytes[2] << 16) + (bytes[3] << 24);
@@ -93,6 +96,7 @@ int encode(struct packet* pkt, char* str)
     strcpy(str + 128, pkt -> key);
     strcpy(str + 256, pkt -> value);
     strcpy(str + 2304, pkt -> old_value);
+    return 0;
 }
 
 /*
@@ -103,11 +107,12 @@ int decode(struct packet* pkt, char* str)
     decode_int(str, &pkt -> optype);
     decode_int(str+4, &pkt -> time);
     decode_int(str+8, &pkt -> return_value);
-    str[12] = pkt -> has_old_val;
-    str[13] = pkt -> has_val;
+    pkt -> has_old_val = str[12]; 
+    pkt -> has_val = str[13];
     strcpy(pkt -> key, str + 128);
     strcpy(pkt -> value, str + 256);
     strcpy(pkt -> old_value, str + 2304);
+    return 0;
 }
 
 int split_port(char* server, char** address, int* port)
@@ -133,7 +138,10 @@ char** fetch_server(char** init_list)
 {
     char *buf = malloc(8192);
     int sent = 0;
+    int num_read = 0;
     char **server_list = NULL;
+    struct packet pkt;
+    init_packet(&pkt);
 
     for(;*init_list != NULL; init_list++)
     {
@@ -179,13 +187,11 @@ char** fetch_server(char** init_list)
         }
         if (connect(tcp_socket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) 
         { 
-            printf("\nConnection Failed \n"); 
+            printf("\nFetch Connection Failed on %s\n", init_server); 
             close(tcp_socket);
             continue; 
         }
         memset(buf, 0, 8192);
-        struct packet pkt;
-        init_packet(&pkt);
         pkt.optype = 2;
         encode(&pkt, buf);
         sent = send(tcp_socket , buf , 8192 , 0);
@@ -195,7 +201,11 @@ char** fetch_server(char** init_list)
             close(tcp_socket);
             continue;
         }
-        int rtn = read(tcp_socket , buf, 8192);
+        num_read = read(tcp_socket , buf, 8192);
+        if (num_read < 0)
+        {
+            close(tcp_socket);
+        }
         decode(&pkt, buf);
         
         num_server = pkt.return_value;
@@ -230,6 +240,7 @@ char** fetch_server(char** init_list)
         {
             fprintf(stderr, "Error: Received number of server does not match");
         }
+        //release_packet(&pkt);
         close(tcp_socket);
         break;
     }
@@ -286,6 +297,7 @@ int kv739_init(char **init_list)
         } 
         socket_list[i] = tcp_socket;
     }
+    return 0;
 }
 
 int kv739_shutdown(void)
@@ -294,20 +306,28 @@ int kv739_shutdown(void)
     {
         close(socket_list[i]);
     }
+    if (socket_list != NULL)
+    {
+        free(socket_list);
+    }
+    socket_list = NULL;
+    num_server = 0;
+    return 0;
 }
 
 int kv739_get(char * key, char * value)
 {
     int latest = -2147483648;
-    int rtn = 0;
+    int rtn = -1;
+    int num_read = 0;
     char *buf = malloc(8192);
+    struct packet pkt;
+    init_packet(&pkt);
     for(int i = 0; i < num_server; i++)
     {
         int retry = 0;
         int sent = 0;
         memset(buf, 0, 8192);
-        struct packet pkt;
-        init_packet(&pkt);
         pkt.optype = 0;
         strcpy(pkt.key, key);
         encode(&pkt, buf);
@@ -319,32 +339,37 @@ int kv739_get(char * key, char * value)
         }
         if (sent != 8192)
             continue;
-        int rtn = read(socket_list[i] , buf, 8192);
+        num_read = read(socket_list[i] , buf, 8192);
+        if (num_read < 0)
+            continue;
         decode(&pkt, buf);
-        // print_packet(&pkt);
+        //print_packet(&pkt);
         if (pkt.time > latest)
         {
             strcpy(value, pkt.value);
+            latest = pkt.time;
             rtn = 1 - pkt.has_val;
         }
     }
     free(buf);
+    // release_packet(&pkt);
     return rtn;
 }
 int kv739_put(char * key, char * value, char * old_value)
 {
     int latest = -2147483648;
-    int rtn = 0;
+    int rtn = -1, num_read = 0;
     char *buf = malloc(8192);
+    struct packet pkt;
+    init_packet(&pkt);
     for(int i = 0; i < num_server; i++)
     {
         int retry = 0;
         int sent = 0;
         memset(buf, 0, 8192);
-        struct packet pkt;
-        init_packet(&pkt);
         pkt.optype = 1;
-        pkt.time = time(NULL);
+        gettimeofday(&tv, NULL);
+        pkt.time = time(NULL) % 10000000 *100 +  (int)(tv.tv_usec) / 10000 % 100;
         strcpy(pkt.key, key);
         strcpy(pkt.value, value);
         encode(&pkt, buf);
@@ -357,15 +382,15 @@ int kv739_put(char * key, char * value, char * old_value)
         }
         if (sent != 8192)
             continue;
-        int rtn = read(socket_list[i] , buf, 8192);
+        num_read = read(socket_list[i] , buf, 8192);
+        if (num_read < 0)
+            continue;
         decode(&pkt, buf);
-        // print_packet(&pkt);
-        if (pkt.time > latest)
-        {
-            strcpy(old_value, pkt.old_value);
-            rtn = 1 - pkt.has_old_val;
-        }
+        //print_packet(&pkt);
+        strcpy(old_value, pkt.old_value);
+        rtn = 1 - pkt.has_old_val;
     }
+    // release_packet(&pkt);
     free(buf);
     return rtn;
 }
