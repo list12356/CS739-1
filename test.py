@@ -17,13 +17,13 @@ num_key = 100
 def main(server_list):
     test_setup(server_list)
     # basic correctness
-    test_correct_single(server_list)
-    test_correct_multiple(server_list)
+    #test_correct_single(server_list)
+    #test_correct_multiple(server_list)
     # test_order_single(server_list)
     # test_order_multiple(server_list)
     # test_throughput(server_list)
     # test_dist_throughput(server_list)
-    test_block(server_list)
+    #test_block(server_list)
 
 def test_setup(server_list):
     for server in server_list:
