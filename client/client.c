@@ -1,10 +1,13 @@
 
 #include <sys/types.h>          /* See NOTES */
+#include <error.h>
+#include <errno.h>
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <arpa/inet.h> 
 #include <string.h>
 #include <stdio.h>
+#include <signal.h>
 #include <time.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -249,7 +252,8 @@ char** fetch_server(char** init_list)
 
 int kv739_init(char **init_list)
 {
-    timeout.tv_sec = 5;
+    signal(SIGPIPE, SIG_IGN);
+    timeout.tv_sec = 1;
     timeout.tv_usec = 0;
     char** server_list = fetch_server(init_list);
     if (server_list == NULL || num_server == 0)
@@ -374,8 +378,12 @@ int kv739_put(char * key, char * value, char * old_value)
         strcpy(pkt.value, value);
         encode(&pkt, buf);
         
-        while((sent = send(socket_list[i] , buf , 8192 , 0)) != 8192)
+        while((sent = send(socket_list[i] , buf , 8192 , MSG_NOSIGNAL)) != 8192)
         {
+            switch (errno) {
+                case EPIPE:
+                    break;
+            }
             printf("Sent not complete, retry: %d\n", retry + 1);
             if (retry++ >= 2 || sent < 0)
                 break;

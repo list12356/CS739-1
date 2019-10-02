@@ -15,17 +15,16 @@ protocol = CustomProtocol()
 num_key = 100
 
 def main(server_list):
-    test_setup(server_list)
     # basic correctness
     #test_correct_single(server_list)
     #test_correct_multiple(server_list)
     # test_order_single(server_list)
     # test_order_multiple(server_list)
-    # test_throughput(server_list)
+    test_throughput(server_list)
     # test_dist_throughput(server_list)
-    #test_block(server_list)
+    # test_block_random(server_list)
 
-def test_setup(server_list):
+def test_block_setup(server_list):
     for server in server_list:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         addr, port = server.split(':')
@@ -217,8 +216,14 @@ def _test_unblock(server):
     socket_dict[server].sendall(protocol.encode(msg))
 
 def test_block(server_list):
+    test_block_setup(server_list)
     for k in range(len(server_list)):
         test_block_K(server_list, k)
+
+def test_block_random(server_list):
+    test_block_setup(server_list)
+    for k in range(len(server_list)//2, len(server_list)):
+        test_block_K_random(server_list, k)
 
 def _test_block_put(server_list, ind, trail, key_list, success_dict):
     client = Client(server_list)
@@ -293,6 +298,42 @@ def test_block_K(server_list, k, trail=100):
         _test_unblock(server)
     print("Client get success rate is {:.3f}".format(success/trail)) 
      
+def test_block_K_random(server_list, k, trail=100):
+    print("Testing put/get random key with {} totally random server fail.".format(k))
+    key_list = [''.join([random.choice(string.ascii_letters + string.digits) for n in range(32)]) for x in range(trail)]
+    client = Client(server_list)
+
+    success = 0
+    for i in range(trail):
+        block_list = random.sample(server_list, k)
+        for server in block_list:
+            _test_block(server)
+        time.sleep(0.1) # give server time to block port
+        val, rtn = client.put(key_list[i], str(i))
+        for server in block_list:
+            _test_unblock(server)
+        time.sleep(0.1) # give server time to unblock port
+        if rtn >= 0:
+            success += 1
+
+    print("Client put success rate is {:.3f}".format(success/trail)) 
+    
+    success = 0
+    for i in range(trail):
+        block_list = random.sample(server_list, k)
+        for server in block_list:
+            _test_block(server)
+        time.sleep(0.1) # give server time to block port
+        val, rtn = client.get(key_list[i])
+        if rtn == 0 and val == str(i):
+            success += 1
+        # else:
+        #     print("client: {}, return: {}, expected value: {}, get: {}".format(ind, rtn, i + ind*trail, val))
+        for server in block_list:
+            _test_unblock(server)
+        time.sleep(0.1) # give server time to unblock port
+    
+    print("Client get success rate is {:.3f}".format(success/trail)) 
     
 if __name__ == "__main__":
     import argparse
